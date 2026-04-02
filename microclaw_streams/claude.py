@@ -3,6 +3,7 @@
 import json
 import re
 import subprocess
+import time
 
 from .speaker import say, reset_interrupted, is_interrupted
 
@@ -55,14 +56,15 @@ def set_session_id(sid):
     _session_id = sid
 
 
-def send_to_claude(text, allowed_tools=None):
+def send_to_claude(text, allowed_tools=None, effort="low"):
     """Send a message to Claude via print mode, streaming the response."""
     global _session_id
     reset_interrupted()
     print(f"\n> {text}\n")
+    t_start = time.time()
 
     cmd = ["claude", "-p", text, "--output-format", "stream-json", "--verbose",
-           "--system-prompt", SYSTEM_PROMPT]
+           "--effort", effort, "--system-prompt", SYSTEM_PROMPT]
     if allowed_tools:
         cmd += ["--allowedTools", allowed_tools]
     if _session_id:
@@ -106,8 +108,9 @@ def send_to_claude(text, allowed_tools=None):
             spoken_so_far += last_close + len("</v>")
 
     proc.wait()
+    elapsed = time.time() - t_start
     response = "".join(full_response)
-    print()
+    print(f"\n⏱  {elapsed:.1f}s")
 
     # Speak any remaining v tags that arrived after the last check
     remaining = response[spoken_so_far:]

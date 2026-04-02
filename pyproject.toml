@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "microclaw-streams"
+version = "0.1.0"
+description = "Push-to-talk voice conversations powered by Whisper and Claude Code"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["voice", "whisper", "claude", "speech", "tts"]
+dependencies = [
+    "numpy",
+    "sounddevice",
+    "openai-whisper",
+]
+
+[project.scripts]
+microclaw-streams = "microclaw_streams.cli:run"
+
+[project.urls]
+Repository = "https://github.com/visendi/microclaw-streams"

@@ -4,6 +4,7 @@ import sys
 import termios
 
 import numpy as np
+import readchar
 import sounddevice as sd
 
 SAMPLE_RATE = 16000
@@ -30,10 +31,10 @@ def record_push_to_talk():
             frames.append(indata.copy())
 
     try:
-        _restore_terminal()
-        stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", callback=callback)
+        stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", callback=callback)
         stream.start()
-        input()  # Enter to stop
+        while readchar.readkey() not in ("\r", "\n", readchar.key.ENTER):
+            pass
         recording = False
         stream.stop()
         stream.close()
@@ -44,10 +45,12 @@ def record_push_to_talk():
 
     if not frames:
         return None
-    return np.concatenate(frames, axis=0).flatten()
+    audio = np.concatenate(frames, axis=0).flatten()
+    # Convert int16 (-32768..32767) to float32 (-1.0..1.0) for Whisper
+    return audio.astype(np.float32) / 32768.0
 
 
-def transcribe(model, audio):
+def transcribe(model, audio, fp16=False):
     """Transcribe audio using Whisper model."""
-    result = model.transcribe(audio, fp16=True)
+    result = model.transcribe(audio, fp16=fp16)
     return result["text"].strip()

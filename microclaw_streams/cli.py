@@ -7,11 +7,17 @@ import tty
 import termios
 
 import whisper
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 from .recorder import record_push_to_talk, transcribe, SAMPLE_RATE, _restore_terminal
 from .claude import send_to_claude, get_session_id, set_session_id
+from .speaker import is_interrupted
 
-MODEL_SIZE = "turbo"  # tiny, base, small, medium, large, turbo
+console = Console()
+
+MODEL_SIZE = "base"  # tiny, base, small, medium, large, turbo
 
 MODE_MAP = {
     "a": ("auto-approve", "Edit,Write,Bash,Read"),
@@ -23,8 +29,8 @@ def _print_session_id():
     """Print the session ID on exit so the user can resume later."""
     sid = get_session_id()
     if sid:
-        print(f"\n🔑 Session ID: {sid}")
-        print(f"   Resume with: microclaw-streams --resume {sid}")
+        console.print(f"\n[bold cyan]🔑 Session ID:[/] {sid}")
+        console.print(f"   [dim]Resume with:[/] [bold]microclaw-streams --resume {sid}[/]")
 
 
 def _get_key():
@@ -48,6 +54,8 @@ def main():
     parser.add_argument("--model", "-m", default=MODEL_SIZE,
                         choices=["tiny", "base", "small", "medium", "large", "turbo"],
                         help="Whisper model size (default: turbo)")
+    parser.add_argument("--fp16", action="store_true",
+                        help="Use half-precision (fp16) for Whisper inference (requires CUDA GPU)")
     parser.add_argument("--effort", "-e", default="low",
                         choices=["low", "medium", "high", "max"],
                         help="Claude effort level (default: low)")
@@ -55,7 +63,7 @@ def main():
 
     if args.resume:
         set_session_id(args.resume)
-        print(f"📂 Resuming session: {args.resume}")
+        console.print(f"[bold cyan]📂 Resuming session:[/] {args.resume}")
 
     atexit.register(_print_session_id)
 
@@ -63,23 +71,38 @@ def main():
     effort_idx = effort_levels.index(args.effort)
     effort = args.effort
 
-    print(f"Loading Whisper '{args.model}' model...")
+    console.print(f"[dim]Loading Whisper[/] [bold yellow]'{args.model}'[/] [dim]model...[/]")
     model = whisper.load_model(args.model)
-    print("Ready!\n")
+    console.print(Panel("[bold green]Ready![/]", border_style="green", expand=False))
+    print()
 
     while True:
-        print(f"Press: ENTER=record  A=auto-approve  W=web search  T=type  E=effort [{effort}]  (Ctrl+C to quit)")
+        menu = Text()
+        menu.append("ENTER", style="bold white")
+        menu.append("=record  ", style="dim")
+        menu.append("A", style="bold white")
+        menu.append("=auto-approve  ", style="dim")
+        menu.append("W", style="bold white")
+        menu.append("=web search  ", style="dim")
+        menu.append("T", style="bold white")
+        menu.append("=type  ", style="dim")
+        menu.append("E", style="bold white")
+        menu.append(f"=effort ", style="dim")
+        menu.append(f"[{effort}]", style="bold magenta")
+        console.print(menu)
+
         key = _get_key()
         if key == "\x03":  # Ctrl+C
             raise KeyboardInterrupt
         if key == "e":
             effort_idx = (effort_idx + 1) % len(effort_levels)
             effort = effort_levels[effort_idx]
-            print(f"⚡ Effort set to: {effort}")
+            console.print(f"[bold yellow]⚡ Effort set to:[/] [bold magenta]{effort}[/]")
             continue
         if key == "t":
             _restore_terminal()
-            text = input("💬 Type your message: ").strip()
+            console.print("[bold cyan]💬 Type your message:[/] ", end="")
+            text = input().strip()
             if text:
                 send_to_claude(text, effort=effort)
                 print()
@@ -88,40 +111,37 @@ def main():
         mode = MODE_MAP.get(key)
         if mode:
             label, allowed_tools = mode
-            print(f"🎙  Recording ({label} ON)... press ENTER to stop.")
+            console.print(f"[bold red]🎙  Recording[/] [bold yellow]({label} ON)[/] [dim]... press ENTER to stop.[/]")
         else:
             allowed_tools = None
-            print("🎙  Recording... press ENTER to stop.")
+            console.print("[bold red]🎙  Recording[/] [dim]... press ENTER to stop.[/]")
 
-        result = record_push_to_talk(model=model)
+        audio = record_push_to_talk()
 
-        if result is None or result[0] is None:
-            print("Too short, skipping.\n")
+        if audio is None or len(audio) < SAMPLE_RATE * 0.3:
+            console.print("[dim]Too short, skipping.[/]\n")
             continue
 
-        full_audio, remaining_audio, pre_transcribed = result
-
-        if len(full_audio) < SAMPLE_RATE * 0.3:
-            print("Too short, skipping.\n")
-            continue
-
-        # Only transcribe the remaining (not yet pre-transcribed) audio
-        print("Transcribing...")
-        if remaining_audio is not None and len(remaining_audio) > SAMPLE_RATE * 0.3:
-            remaining_text = transcribe(model, remaining_audio)
-        else:
-            remaining_text = ""
-
-        # Combine pre-transcribed chunks with the remaining transcription
-        parts = pre_transcribed + ([remaining_text] if remaining_text else [])
-        text = " ".join(parts).strip()
+        console.print("[bold cyan]Transcribing...[/]")
+        text = transcribe(model, audio, fp16=args.fp16)
 
         if not text:
-            print("No speech detected.\n")
+            console.print("[dim]No speech detected.[/]\n")
             continue
 
         send_to_claude(text, allowed_tools=allowed_tools, effort=effort)
         print()
+
+        # If speech was interrupted by Enter, go straight into recording
+        if is_interrupted():
+            console.print("[bold red]🎙  Recording[/] [dim]... press ENTER to stop.[/]")
+            audio = record_push_to_talk()
+            if audio is not None and len(audio) >= SAMPLE_RATE * 0.3:
+                console.print("[bold cyan]Transcribing...[/]")
+                text = transcribe(model, audio, fp16=args.fp16)
+                if text:
+                    send_to_claude(text, effort=effort)
+                    print()
 
 
 def run():
@@ -129,4 +149,4 @@ def run():
     try:
         main()
     except KeyboardInterrupt:
-        print("\nBye!")
+        console.print("\n[bold]Bye![/]")

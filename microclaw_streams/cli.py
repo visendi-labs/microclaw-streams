@@ -7,21 +7,15 @@ import tty
 import termios
 
 import whisper
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
 
 from .recorder import record_push_to_talk, transcribe, SAMPLE_RATE, _restore_terminal
 from .claude import send_to_claude, get_session_id, set_session_id
 from .speaker import is_interrupted
 
-console = Console()
-
 MODEL_SIZE = "base"  # tiny, base, small, medium, large, turbo
 
 MODE_MAP = {
-    "a": ("auto-approve", "Edit,Write,Bash,Read"),
-    "w": ("web search", "WebSearch,WebFetch"),
+    "a": ("auto-approve", "Edit,Write,Bash,Read,Glob,Grep,WebSearch,WebFetch"),
 }
 
 
@@ -29,8 +23,8 @@ def _print_session_id():
     """Print the session ID on exit so the user can resume later."""
     sid = get_session_id()
     if sid:
-        console.print(f"\n[bold cyan]🔑 Session ID:[/] {sid}")
-        console.print(f"   [dim]Resume with:[/] [bold]microclaw-streams --resume {sid}[/]")
+        print(f"\nSession ID: {sid}")
+        print(f"Resume with: microclaw-streams --resume {sid}")
 
 
 def _get_key():
@@ -66,7 +60,7 @@ def main():
 
     if args.resume:
         set_session_id(args.resume)
-        console.print(f"[bold cyan]📂 Resuming session:[/] {args.resume}")
+        print(f"Resuming session: {args.resume}")
 
     atexit.register(_print_session_id)
 
@@ -80,29 +74,16 @@ def main():
     lang_idx = language_options.index(args.language)
     language = args.language
 
-    console.print(f"[dim]Loading Whisper[/] [bold yellow]'{args.model}'[/] [dim]model locally (no audio leaves your machine)...[/]")
+    print(f"Loading Whisper '{args.model}' model locally (no audio leaves your machine)...")
     model = whisper.load_model(args.model)
-    console.print(Panel("[bold green]Ready![/]", border_style="green", expand=False))
-    print()
+    B = "\033[1m"
+    R = "\033[0m"
+    D = "\033[2m"
+
+    print(f"{B}Ready!{R}\n")
 
     while True:
-        menu = Text()
-        menu.append("ENTER", style="bold white")
-        menu.append("=record  ", style="dim")
-        menu.append("A", style="bold white")
-        menu.append("=auto-approve  ", style="dim")
-        menu.append("W", style="bold white")
-        menu.append("=web search  ", style="dim")
-        menu.append("T", style="bold white")
-        menu.append("=type  ", style="dim")
-        menu.append("E", style="bold white")
-        menu.append(f"=effort ", style="dim")
-        menu.append(f"[{effort}]", style="bold magenta")
-        menu.append("  ", style="dim")
-        menu.append("L", style="bold white")
-        menu.append(f"=lang ", style="dim")
-        menu.append(f"[{language}]", style="bold magenta")
-        console.print(menu)
+        print(f"{B}ENTER{R}=record  {B}A{R}=auto-approve  {B}T{R}=manually type input  {B}E{R}=effort [{B}{effort}{R}]  {B}L{R}=lang [{B}{language}{R}]  ")
 
         key = _get_key()
         if key == "\x03":  # Ctrl+C
@@ -110,16 +91,16 @@ def main():
         if key == "e":
             effort_idx = (effort_idx + 1) % len(effort_levels)
             effort = effort_levels[effort_idx]
-            console.print(f"[bold yellow]⚡ Effort set to:[/] [bold magenta]{effort}[/]")
+            print(f"Effort set to: {B}{effort}{R}")
             continue
         if key == "l":
             lang_idx = (lang_idx + 1) % len(language_options)
             language = language_options[lang_idx]
-            console.print(f"[bold yellow]🌐 Language set to:[/] [bold magenta]{language}[/]")
+            print(f"Language set to: {B}{language}{R}")
             continue
         if key == "t":
             _restore_terminal()
-            console.print("[bold cyan]💬 Type your message:[/] ", end="")
+            print("Type your message: ", end="", flush=True)
             text = input().strip()
             if text:
                 send_to_claude(text, effort=effort)
@@ -129,22 +110,23 @@ def main():
         mode = MODE_MAP.get(key)
         if mode:
             label, allowed_tools = mode
-            console.print(f"[bold red]🎙  Recording[/] [bold yellow]({label} ON)[/] [dim]... press ENTER to stop.[/]")
+            print(f"{B}Recording{R} ({label} ON) ... press ENTER to stop.")
         else:
-            allowed_tools = None
-            console.print("[bold red]🎙  Recording[/] [dim]... press ENTER to stop.[/]")
+            allowed_tools = "WebSearch,WebFetch"
+            print(f"{B}Recording{R} ... press ENTER to stop.")
 
+        _restore_terminal()
         audio = record_push_to_talk()
 
         if audio is None or len(audio) < SAMPLE_RATE * 0.3:
-            console.print("[dim]Too short, skipping.[/]\n")
+            print("Too short, skipping.\n")
             continue
 
-        console.print("[bold cyan]Transcribing...[/]")
+        print(f"{D}Transcribing...{R}")
         text = transcribe(model, audio, fp16=args.fp16, language=language)
 
         if not text:
-            console.print("[dim]No speech detected.[/]\n")
+            print(f"{D}No speech detected.{R}\n")
             continue
 
         send_to_claude(text, allowed_tools=allowed_tools, effort=effort)
@@ -152,10 +134,11 @@ def main():
 
         # If speech was interrupted by Enter, go straight into recording
         if is_interrupted():
-            console.print("[bold red]🎙  Recording[/] [dim]... press ENTER to stop.[/]")
+            print(f"{B}Recording{R} ... press ENTER to stop.")
+            _restore_terminal()
             audio = record_push_to_talk()
             if audio is not None and len(audio) >= SAMPLE_RATE * 0.3:
-                console.print("[bold cyan]Transcribing...[/]")
+                print(f"{D}Transcribing...{R}")
                 text = transcribe(model, audio, fp16=args.fp16, language=language)
                 if text:
                     send_to_claude(text, effort=effort)
@@ -167,4 +150,4 @@ def run():
     try:
         main()
     except KeyboardInterrupt:
-        console.print("\n[bold]Bye![/]")
+        print("\nBye!")

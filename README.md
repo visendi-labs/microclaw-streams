@@ -37,6 +37,7 @@ microclaw-streams
 | `W` | Record with web search enabled |
 | `T` | Type a message instead of speaking |
 | `E` | Cycle effort level |
+| `L` | Cycle transcription language |
 | `Space` | Interrupt speech output |
 
 ## How it works

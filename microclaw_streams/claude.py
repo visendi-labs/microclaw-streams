@@ -66,6 +66,7 @@ def send_to_claude(text, allowed_tools=None, effort="low"):
 
     full_response = []
     result_stats = {}
+    _pending_tools = {}
     spoken_so_far = 0
     for line in proc.stdout:
         line = line.strip()
@@ -78,9 +79,47 @@ def send_to_claude(text, allowed_tools=None, effort="low"):
         # Capture session_id from init event
         if event.get("type") == "system" and event.get("subtype") == "init":
             _session_id = event.get("session_id")
+        elif event.get("type") == "user" and "message" in event:
+                for block in event["message"].get("content", []):
+                    if block.get("type") == "tool_result":
+                        tid = block.get("tool_use_id", "")
+                        name = _pending_tools.pop(tid, "tool")
+                        # Extract a snippet of the tool result content
+                        snippet = ""
+                        content = block.get("content", "")
+                        if isinstance(content, str):
+                            snippet = content
+                        elif isinstance(content, list):
+                            parts = [c.get("text", "") for c in content if isinstance(c, dict)]
+                            snippet = "\n".join(parts)
+                        if snippet:
+                            lines = snippet.splitlines()
+                            preview = "\n".join(lines[:6])
+                            if len(lines) > 6:
+                                preview += f"\n… ({len(lines) - 6} more lines)"
+                            console.print(Padding(Panel(preview, title=f"[dim]✓ {name} result[/]", border_style="dim green", expand=False), (0, 0, 0, 12)))
+                        else:
+                            console.print(Padding(f"[dim]   ✓ {name} done[/]", (0, 0, 0, 12)))
         elif event.get("type") == "assistant" and "message" in event:
             for block in event["message"].get("content", []):
-                if block.get("type") == "text":
+                if block.get("type") == "tool_use":
+                    tool_name = block.get("name", "unknown")
+                    tool_input = block.get("input", {})
+                    _pending_tools[block.get("id", "")] = tool_name
+                    detail = ""
+                    if tool_name in ("Read", "Edit", "Write"):
+                        detail = f" → {tool_input.get('file_path', '?')}"
+                    elif tool_name == "Bash":
+                        cmd = tool_input.get("command", "")
+                        detail = f" → `{cmd[:80]}{'…' if len(cmd) > 80 else ''}`"
+                    elif tool_name == "Glob":
+                        detail = f" → {tool_input.get('pattern', '?')}"
+                    elif tool_name == "Grep":
+                        detail = f" → /{tool_input.get('pattern', '?')}/"
+                    elif tool_name == "Agent":
+                        detail = f" → {tool_input.get('description', '?')}"
+                    console.print(Padding(f"[dim]🔧 {tool_name}{detail}[/]", (0, 0, 0, 12)))
+                elif block.get("type") == "text":
                     chunk_text = block["text"]
                     full_response.append(chunk_text)
                     text_only = VOICE_RE.sub('', chunk_text).strip()

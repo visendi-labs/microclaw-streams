@@ -74,6 +74,12 @@ def main():
     effort_idx = effort_levels.index(args.effort)
     effort = args.effort
 
+    language_options = ["auto", "en", "sv", "de", "fr", "es", "ja", "zh"]
+    if args.language not in language_options:
+        language_options.insert(1, args.language)
+    lang_idx = language_options.index(args.language)
+    language = args.language
+
     console.print(f"[dim]Loading Whisper[/] [bold yellow]'{args.model}'[/] [dim]model locally (no audio leaves your machine)...[/]")
     model = whisper.load_model(args.model)
     console.print(Panel("[bold green]Ready![/]", border_style="green", expand=False))
@@ -92,6 +98,10 @@ def main():
         menu.append("E", style="bold white")
         menu.append(f"=effort ", style="dim")
         menu.append(f"[{effort}]", style="bold magenta")
+        menu.append("  ", style="dim")
+        menu.append("L", style="bold white")
+        menu.append(f"=lang ", style="dim")
+        menu.append(f"[{language}]", style="bold magenta")
         console.print(menu)
 
         key = _get_key()
@@ -101,6 +111,11 @@ def main():
             effort_idx = (effort_idx + 1) % len(effort_levels)
             effort = effort_levels[effort_idx]
             console.print(f"[bold yellow]⚡ Effort set to:[/] [bold magenta]{effort}[/]")
+            continue
+        if key == "l":
+            lang_idx = (lang_idx + 1) % len(language_options)
+            language = language_options[lang_idx]
+            console.print(f"[bold yellow]🌐 Language set to:[/] [bold magenta]{language}[/]")
             continue
         if key == "t":
             _restore_terminal()
@@ -126,7 +141,7 @@ def main():
             continue
 
         console.print("[bold cyan]Transcribing...[/]")
-        text = transcribe(model, audio, fp16=args.fp16, language=args.language)
+        text = transcribe(model, audio, fp16=args.fp16, language=language)
 
         if not text:
             console.print("[dim]No speech detected.[/]\n")
@@ -141,7 +156,7 @@ def main():
             audio = record_push_to_talk()
             if audio is not None and len(audio) >= SAMPLE_RATE * 0.3:
                 console.print("[bold cyan]Transcribing...[/]")
-                text = transcribe(model, audio, fp16=args.fp16, language=args.language)
+                text = transcribe(model, audio, fp16=args.fp16, language=language)
                 if text:
                     send_to_claude(text, effort=effort)
                     print()

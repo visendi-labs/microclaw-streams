@@ -54,6 +54,8 @@ def main():
     parser.add_argument("--model", "-m", default=MODEL_SIZE,
                         choices=["tiny", "base", "small", "medium", "large", "turbo"],
                         help="Whisper model size (default: turbo)")
+    parser.add_argument("--language", "-l", default="auto",
+                        help="Language for Whisper transcription (default: auto). E.g. 'en', 'sv', 'de'")
     parser.add_argument("--fp16", action="store_true",
                         help="Use half-precision (fp16) for Whisper inference (requires CUDA GPU)")
     parser.add_argument("--effort", "-e", default="low",
@@ -123,7 +125,7 @@ def main():
             continue
 
         console.print("[bold cyan]Transcribing...[/]")
-        text = transcribe(model, audio, fp16=args.fp16)
+        text = transcribe(model, audio, fp16=args.fp16, language=args.language)
 
         if not text:
             console.print("[dim]No speech detected.[/]\n")
@@ -138,7 +140,7 @@ def main():
             audio = record_push_to_talk()
             if audio is not None and len(audio) >= SAMPLE_RATE * 0.3:
                 console.print("[bold cyan]Transcribing...[/]")
-                text = transcribe(model, audio, fp16=args.fp16)
+                text = transcribe(model, audio, fp16=args.fp16, language=args.language)
                 if text:
                     send_to_claude(text, effort=effort)
                     print()

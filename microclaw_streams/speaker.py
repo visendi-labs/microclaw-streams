@@ -47,13 +47,15 @@ def _get_available_voices() -> set[str]:
 
 def _pick_voice(lang: str | None) -> str:
     """Pick the best available voice for a language."""
-    candidates = LANG_VOICES.get(lang, DEFAULT_VOICES) if lang else DEFAULT_VOICES
+    candidates = LANG_VOICES.get(
+        lang, DEFAULT_VOICES) if lang else DEFAULT_VOICES
     available = _get_available_voices()
     for voice in candidates:
         if voice in available:
             return voice
     # Last resort: return the last candidate and hope for the best
     return candidates[-1]
+
 
 _interrupted = False
 
@@ -71,8 +73,7 @@ def say(text, lang=None):
     for sentence in split_sentences(text):
         if _interrupted:
             break
-        rate = str(random.randint(200, 220))
-        proc = subprocess.Popen(["say", "-v", voice, "-r", rate, sentence])
+        proc = subprocess.Popen(["say", "-v", voice, "-r", "190", sentence])
         while proc.poll() is None:
             if select.select([sys.stdin], [], [], 0.1)[0]:
                 ch = sys.stdin.read(1)

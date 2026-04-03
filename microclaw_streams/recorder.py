@@ -31,8 +31,11 @@ def record_push_to_talk():
             frames.append(indata.copy())
 
     try:
-        stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", callback=callback)
+        stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", callback=callback)
         stream.start()
+        # Using readchar instead of input() to avoid terminal hang issues.
+        # input() can block forever when terminal state is altered by rich/tty.setcbreak.
+        # readchar manages its own terminal modes so it reliably detects Enter.
         while readchar.readkey() not in ("\r", "\n", readchar.key.ENTER):
             pass
         recording = False
@@ -45,12 +48,17 @@ def record_push_to_talk():
 
     if not frames:
         return None
-    audio = np.concatenate(frames, axis=0).flatten()
-    # Convert int16 (-32768..32767) to float32 (-1.0..1.0) for Whisper
-    return audio.astype(np.float32) / 32768.0
+    return np.concatenate(frames, axis=0).flatten()
 
 
-def transcribe(model, audio, fp16=False):
+def transcribe(model, audio, fp16=False, language="en"):
     """Transcribe audio using Whisper model."""
-    result = model.transcribe(audio, fp16=fp16)
+    kwargs = dict(
+        fp16=fp16,
+        condition_on_previous_text=False,
+        beam_size=1,
+    )
+    if language != "auto":
+        kwargs["language"] = language
+    result = model.transcribe(audio, **kwargs)
     return result["text"].strip()

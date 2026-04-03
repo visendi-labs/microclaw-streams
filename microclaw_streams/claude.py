@@ -3,7 +3,6 @@
 import json
 import re
 import subprocess
-import time
 
 from rich.console import Console
 from rich.padding import Padding
@@ -19,11 +18,16 @@ SYSTEM_PROMPT = (
     "You are in a live voice conversation. The user is speaking to you via speech-to-text. "
     "Keep responses concise and conversational. "
     "Wrap spoken text in <v></v> tags. Use a lang attribute for non-English, e.g. <v lang=\"sv\">. "
-    "Match the user's language. Default is English.\n"
+    "Match the user's language. Default is English.\n\n"
+    "CRITICAL: Your response MUST start with a <v> tag IMMEDIATELY — before any thinking, "
+    "code, tool calls, or text output. The user is waiting to hear you speak. "
+    "Give a quick spoken acknowledgment first (e.g. 'Sure, let me look into that' or "
+    "'Good question, here's what I think'), then continue with any additional work. "
+    "You can add more <v> tags later in your response if needed.\n\n"
     "Content outside <v> tags is shown in the terminal but not spoken. "
-    "Always include a <v> section. Be responsive — acknowledge quickly before heavy work.\n"
-    "For plans, documents, or code: keep <v> short (e.g. 'Here, take a look'), "
-    "put details outside <v> tags. If writing a plan file, also output it in your response.\n"
+    "Always include at least one <v> section. Be responsive — never leave the user in silence.\n"
+    "For plans, documents, or code: keep the first <v> short (e.g. 'Here, take a look'), "
+    "put details outside <v> tags, then optionally add another <v> to summarize.\n"
     "It is recommended to output information outside <v> tags so the user can see what's "
     "happening in the terminal (e.g. summaries of changes, file paths, key decisions). "
     "This way the user stays informed even when the spoken response is kept brief."
@@ -49,7 +53,7 @@ def send_to_claude(text, allowed_tools=None, effort="low"):
     reset_interrupted()
     console.print(Panel(text, title="[bold]🎤 You[/]", border_style="cyan", expand=False))
     print()
-    t_start = time.time()
+
 
     cmd = ["claude", "-p", text, "--output-format", "stream-json", "--verbose",
            "--effort", effort, "--system-prompt", SYSTEM_PROMPT]
@@ -61,6 +65,7 @@ def send_to_claude(text, allowed_tools=None, effort="low"):
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     full_response = []
+    result_stats = {}
     spoken_so_far = 0
     for line in proc.stdout:
         line = line.strip()
@@ -84,8 +89,9 @@ def send_to_claude(text, allowed_tools=None, effort="low"):
                         console.print(Padding(Panel(voice_only, title="[bold]🔊 Voice[/]", border_style="magenta", expand=False), (1, 0, 1, 10)))
                     if text_only:
                         console.print(Padding(Panel(text_only, title="[bold]💻 Text[/]", border_style="blue", expand=False), (1, 0, 1, 10)))
-        elif event.get("type") == "result" and "result" in event:
-            if not full_response:
+        elif event.get("type") == "result":
+            result_stats = event
+            if "result" in event and not full_response:
                 full_response.append(event["result"])
                 text_only = VOICE_RE.sub('', event["result"]).strip()
                 voice_only = " ".join(m[1] for m in VOICE_RE.findall(event["result"])).strip()
@@ -107,9 +113,23 @@ def send_to_claude(text, allowed_tools=None, effort="low"):
             spoken_so_far += last_close + len("</v>")
 
     proc.wait()
-    elapsed = time.time() - t_start
     response = "".join(full_response)
-    console.print(f"          [dim]⏱  {elapsed:.1f}s[/]\n")
+
+    stats_parts = []
+    if result_stats:
+        if "duration_ms" in result_stats:
+            stats_parts.append(f"⏱  {result_stats['duration_ms'] / 1000:.1f}s")
+        usage = result_stats.get("usage", {})
+        if usage.get("input_tokens"):
+            stats_parts.append(f"📥 {usage['input_tokens']} in")
+        if usage.get("output_tokens"):
+            stats_parts.append(f"📤 {usage['output_tokens']} out")
+        cached = usage.get("cache_read_input_tokens", 0)
+        if cached:
+            stats_parts.append(f"💾 {cached} cached")
+        if "total_cost_usd" in result_stats:
+            stats_parts.append(f"💲{result_stats['total_cost_usd']:.4f}")
+    console.print(f"          [dim]{' · '.join(stats_parts)}[/]\n")
 
     # Speak any remaining v tags that arrived after the last check
     remaining = response[spoken_so_far:]

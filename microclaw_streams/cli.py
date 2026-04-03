@@ -47,7 +47,8 @@ def _get_key():
 def main():
     parser = argparse.ArgumentParser(
         prog="microclaw-streams",
-        description="MicroClaw Streams — Push-to-talk voice conversations powered by Whisper and Claude Code",
+        description="MicroClaw Streams — Push-to-talk voice conversations powered by Whisper (local) and Claude Code. "
+                    "Whisper runs entirely on your machine — no audio is sent to the cloud.",
     )
     parser.add_argument("--resume", "-r", metavar="SESSION_ID",
                         help="Resume a previous conversation by session ID")
@@ -73,7 +74,7 @@ def main():
     effort_idx = effort_levels.index(args.effort)
     effort = args.effort
 
-    console.print(f"[dim]Loading Whisper[/] [bold yellow]'{args.model}'[/] [dim]model...[/]")
+    console.print(f"[dim]Loading Whisper[/] [bold yellow]'{args.model}'[/] [dim]model locally (no audio leaves your machine)...[/]")
     model = whisper.load_model(args.model)
     console.print(Panel("[bold green]Ready![/]", border_style="green", expand=False))
     print()

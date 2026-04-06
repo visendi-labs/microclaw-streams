@@ -10,6 +10,27 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 keywords = ["voice", "whisper", "claude", "speech", "tts"]
+authors = [
+    { name = "Your Name", email = "you@example.com" },
+]
+maintainers = [
+    { name = "Your Name", email = "you@example.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "numpy",
     "sounddevice",
@@ -21,4 +42,6 @@ dependencies = [
 microclaw-streams = "microclaw_streams.cli:run"
 
 [project.urls]
+Homepage = "https://github.com/visendi/microclaw-streams"
 Repository = "https://github.com/visendi/microclaw-streams"
+Issues = "https://github.com/visendi/microclaw-streams/issues"

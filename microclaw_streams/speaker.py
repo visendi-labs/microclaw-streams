@@ -73,7 +73,7 @@ def say(text, lang=None):
     for sentence in split_sentences(text):
         if _interrupted:
             break
-        proc = subprocess.Popen(["say", "-v", voice, "-r", "190", sentence])
+        proc = subprocess.Popen(["say", "-v", voice, "-r", "190", sentence + " [[slnc 300]]"])
         while proc.poll() is None:
             if select.select([sys.stdin], [], [], 0.1)[0]:
                 ch = sys.stdin.read(1)

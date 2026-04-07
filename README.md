@@ -4,7 +4,7 @@ Voice calls with Claude – talk it out. Voice in, voice out. Push-to-talk voice
 
 Whisper runs **entirely on your machine** — no audio is sent to the cloud. Only the transcribed text is sent to Claude.
 
-~490 lines of Python across 5 modules, with just three dependencies: `numpy`, `sounddevice`, and `openai-whisper`.
+Just three dependencies: `numpy`, `sounddevice`, and `openai-whisper`.
 
 ## Setup
 
@@ -12,7 +12,7 @@ Whisper runs **entirely on your machine** — no audio is sent to the cloud. Onl
 pip install microclaw-streams
 ```
 
-Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to be installed and authenticated.
+Requires macOS (uses the built-in `say` command) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to be installed and authenticated.
 
 ## Usage
 

@@ -8,7 +8,7 @@ import termios
 
 import whisper
 
-from .recorder import record_push_to_talk, transcribe, SAMPLE_RATE, _restore_terminal
+from .recorder import record_push_to_talk, transcribe, SAMPLE_RATE
 from .claude import send_to_claude, get_session_id, set_session_id
 from .speaker import is_interrupted
 
@@ -99,7 +99,6 @@ def main():
             print(f"Language set to: {B}{language}{R}")
             continue
         if key == "t":
-            _restore_terminal()
             print("Type your message: ", end="", flush=True)
             text = input().strip()
             if text:
@@ -115,7 +114,6 @@ def main():
             allowed_tools = "WebSearch,WebFetch"
             print(f"{B}Recording{R} ... press ENTER to stop.")
 
-        _restore_terminal()
         audio = record_push_to_talk()
 
         if audio is None or len(audio) < SAMPLE_RATE * 0.3:
@@ -135,7 +133,6 @@ def main():
         # If speech was interrupted by Enter, go straight into recording
         if is_interrupted():
             print(f"{B}Recording{R} ... press ENTER to stop.")
-            _restore_terminal()
             audio = record_push_to_talk()
             if audio is not None and len(audio) >= SAMPLE_RATE * 0.3:
                 print(f"{D}Transcribing...{R}")

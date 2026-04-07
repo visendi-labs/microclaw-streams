@@ -9,7 +9,7 @@ Whisper runs **entirely on your machine** — no audio is sent to the cloud. Onl
 ## Setup
 
 ```bash
-pip install -e .
+pip install microclaw-streams
 ```
 
 Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to be installed and authenticated.

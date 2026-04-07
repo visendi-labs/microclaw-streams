@@ -1,6 +1,6 @@
 # MicroClaw Streams
 
-Push-to-talk voice conversations powered by [Whisper](https://github.com/openai/whisper) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Voice calls with Claude – talk it out. Voice in, voice out. Push-to-talk voice conversations powered by [Whisper](https://github.com/openai/whisper) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 Whisper runs **entirely on your machine** — no audio is sent to the cloud. Only the transcribed text is sent to Claude.
 

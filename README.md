@@ -30,7 +30,7 @@ microclaw-streams -l sv -e high
 | `-m`, `--model` | Whisper model size (`tiny`, `base`, `small`, `medium`, `large`, `turbo`) | `base` |
 | `-l`, `--language` | Transcription language (e.g. `en`, `sv`, `de`) | `auto` |
 | `-e`, `--effort` | Claude effort level (`low`, `medium`, `high`, `max`) | `low` |
-| `-r`, `--resume` | Resume a previous session by ID | — |
+| `-r`, `--resume` | Resume a previous Claude Code session by its session ID | — |
 | `--fp16` | Use half-precision inference (requires CUDA GPU) | off |
 
 ### Controls

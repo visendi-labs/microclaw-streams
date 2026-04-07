@@ -4,7 +4,7 @@ Voice calls with Claude – talk it out. Voice in, voice out. Push-to-talk voice
 
 Whisper runs **entirely on your machine** — no audio is sent to the cloud. Only the transcribed text is sent to Claude.
 
-~490 lines of Python across 5 modules, with just four dependencies: `numpy`, `sounddevice`, `openai-whisper`, and `readchar`.
+~490 lines of Python across 5 modules, with just three dependencies: `numpy`, `sounddevice`, and `openai-whisper`.
 
 ## Setup
 

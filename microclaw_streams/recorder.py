@@ -1,24 +1,29 @@
 """Audio recording and transcription via Whisper."""
 
+import select
 import sys
 import termios
+import tty
 
 import numpy as np
-import readchar
 import sounddevice as sd
 
 SAMPLE_RATE = 16000
 
 
-def _restore_terminal():
-    """Restore terminal to normal (cooked) mode."""
+def _wait_for_enter():
+    """Block until Enter is pressed, polling stdin in cbreak mode."""
+    fd = sys.stdin.fileno()
+    old_attrs = termios.tcgetattr(fd)
     try:
-        fd = sys.stdin.fileno()
-        old = termios.tcgetattr(fd)
-        old[3] = old[3] | termios.ECHO | termios.ICANON
-        termios.tcsetattr(fd, termios.TCSADRAIN, old)
-    except Exception:
-        pass
+        tty.setcbreak(fd)
+        while True:
+            if select.select([sys.stdin], [], [], 0.1)[0]:
+                ch = sys.stdin.read(1)
+                if ch in ("\r", "\n"):
+                    return
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
 
 
 def record_push_to_talk():
@@ -33,11 +38,7 @@ def record_push_to_talk():
     try:
         stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", callback=callback)
         stream.start()
-        # Using readchar instead of input() to avoid terminal hang issues.
-        # input() can block forever when terminal state is altered by rich/tty.setcbreak.
-        # readchar manages its own terminal modes so it reliably detects Enter.
-        while readchar.readchar() not in ("\r", "\n"):
-            pass
+        _wait_for_enter()
         recording = False
         stream.stop()
         stream.close()

@@ -35,7 +35,6 @@ dependencies = [
     "numpy",
     "sounddevice",
     "openai-whisper",
-    "readchar",
 ]
 
 [project.scripts]

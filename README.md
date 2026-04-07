@@ -16,6 +16,9 @@ Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to be ins
 
 ```bash
 microclaw-streams
+microclaw-streams --model turbo
+microclaw-streams --resume <session-id>
+microclaw-streams -l sv -e high
 ```
 
 ### Options

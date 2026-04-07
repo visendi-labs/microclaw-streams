@@ -36,7 +36,7 @@ def record_push_to_talk():
         # Using readchar instead of input() to avoid terminal hang issues.
         # input() can block forever when terminal state is altered by rich/tty.setcbreak.
         # readchar manages its own terminal modes so it reliably detects Enter.
-        while readchar.readkey() not in ("\r", "\n", readchar.key.ENTER):
+        while readchar.readchar() not in ("\r", "\n"):
             pass
         recording = False
         stream.stop()

@@ -60,45 +60,45 @@ microclaw-streams -l sv -e high
 
 ## Example Conversation 
 
-```diff
-# Loading Whisper 'turbo' model locally (no audio leaves your machine)...
-# Ready!
+```
+Loading Whisper 'turbo' model locally (no audio leaves your machine)...
+Ready!
 
-# ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]  
-# Recording ... press ENTER to stop.
-# Transcribing...
-@@You:@@ Hey what's up how come we have a bunch of html files in this repo?
+ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]
+Recording ... press ENTER to stop.
+Transcribing...
+You: Hey what's up how come we have a bunch of html files in this repo?
 
-          @@Voice:@@ Let me take a quick look at what HTML files are in the repo.
-!         [Glob **/*.html]
-#         [Glob result]
-#         index.html
-#         demo.html
+          Voice: Let me take a quick look at what HTML files are in the repo.
+          [Glob **/*.html]
+          [Glob result]
+          index.html
+          demo.html
 
-          @@Voice:@@ Actually, there are only two HTML files — an **index.html** and a **demo.html**. Not really a bunch. Want me to look into what they're for?
-#         [5.5s | 4 in | 123 out | 10254 cached | $0.0729]
-
-
-# ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]  
-# Recording ... press ENTER to stop.
-# Transcribing...
-@@You:@@ Yup, for sure.
-
-          @@Voice:@@ Sure, let me check them out.
-!         [Read /home/user/index.html]
-#         [Read result]
--         Claude requested permissions to read from /home/user/index.html, but you haven't granted it yet.
-
-!         [Read /home/user/demo.html]
-#         [Read result]
--         Claude requested permissions to read from /home/user/demo.html, but you haven't granted it yet.
-
-          @@Voice:@@ Hmm, looks like I need permission to read those files. Could you grant me access?
-#         [6.4s | 4 in | 147 out | 20759 cached | $0.0158]
+          Voice: Actually, there are only two HTML files — an **index.html** and a **demo.html**. Not really a bunch. Want me to look into what they're for?
+          [5.5s | 4 in | 123 out | 10254 cached | $0.0729]
 
 
-# ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]  
-# Recording (auto-approve ON) ... press ENTER to stop.
-# Transcribing...
-@@You:@@ Here you go.
+ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]
+Recording ... press ENTER to stop.
+Transcribing...
+You: Yup, for sure.
+
+          Voice: Sure, let me check them out.
+          [Read /home/user/index.html]
+          [Read result]
+          Claude requested permissions to read from /home/user/index.html, but you haven't granted it yet.
+
+          [Read /home/user/demo.html]
+          [Read result]
+          Claude requested permissions to read from /home/user/demo.html, but you haven't granted it yet.
+
+          Voice: Hmm, looks like I need permission to read those files. Could you grant me access?
+          [6.4s | 4 in | 147 out | 20759 cached | $0.0158]
+
+
+ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]
+Recording (auto-approve ON) ... press ENTER to stop.
+Transcribing...
+You: Here you go.
 ```

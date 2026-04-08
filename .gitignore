@@ -11,3 +11,4 @@ build/
 venv/
 env/
 voice-claude.py
+TODO.md

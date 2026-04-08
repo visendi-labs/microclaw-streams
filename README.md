@@ -47,7 +47,6 @@ Here `--model turbo` is consumed by MicroClaw (Whisper model), while `--max-turn
 |-----|--------|
 | `Enter` | Start/stop recording |
 | `A` | Record with auto-approve (allows edits, writes, bash) |
-| `W` | Record with web search enabled |
 | `T` | Type a message instead of speaking |
 | `E` | Cycle effort level |
 | `L` | Cycle transcription language |

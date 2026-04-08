@@ -41,7 +41,7 @@ def set_session_id(sid):
     _session_id = sid
 
 
-def send_to_claude(text, allowed_tools=None, effort="low"):
+def send_to_claude(text, allowed_tools=None, effort="low", extra_args=None):
     """Send a message to Claude via print mode, streaming the response."""
     global _session_id
     reset_interrupted()
@@ -56,6 +56,8 @@ def send_to_claude(text, allowed_tools=None, effort="low"):
         cmd += ["--allowedTools", allowed_tools]
     if _session_id:
         cmd += ["--resume", _session_id]
+    if extra_args:
+        cmd += extra_args
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 

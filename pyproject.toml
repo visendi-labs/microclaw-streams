@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microclaw-streams"
-version = "0.1.1"
+version = "0.1.2"
 description = "Push-to-talk voice conversations powered by Whisper and Claude Code"
 readme = "README.md"
 requires-python = ">=3.10"

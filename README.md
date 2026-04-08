@@ -33,6 +33,14 @@ microclaw-streams -l sv -e high
 | `-r`, `--resume` | Resume a previous Claude Code session by its session ID | — |
 | `--fp16` | Use half-precision inference (requires CUDA GPU) | off |
 
+Any **additional flags** you pass are forwarded directly to the `claude` CLI. For example:
+
+```bash
+microclaw-streams --max-turns 5 --permission-mode plan --model turbo
+```
+
+Here `--model turbo` is consumed by MicroClaw (Whisper model), while `--max-turns 5` and `--permission-mode plan` are passed through to Claude Code. See `claude --help` for all available options.
+
 ### Controls
 
 | Key | Action |

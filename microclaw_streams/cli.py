@@ -56,7 +56,7 @@ def main():
     parser.add_argument("--effort", "-e", default="low",
                         choices=["low", "medium", "high", "max"],
                         help="Claude effort level (default: low)")
-    args = parser.parse_args()
+    args, extra_claude_args = parser.parse_known_args()
 
     if args.resume:
         set_session_id(args.resume)
@@ -102,7 +102,7 @@ def main():
             print("Type your message: ", end="", flush=True)
             text = input().strip()
             if text:
-                send_to_claude(text, effort=effort)
+                send_to_claude(text, effort=effort, extra_args=extra_claude_args)
                 print()
             continue
 
@@ -127,7 +127,7 @@ def main():
             print(f"{D}No speech detected.{R}\n")
             continue
 
-        send_to_claude(text, allowed_tools=allowed_tools, effort=effort)
+        send_to_claude(text, allowed_tools=allowed_tools, effort=effort, extra_args=extra_claude_args)
         print()
 
         # If speech was interrupted by Enter, go straight into recording
@@ -138,7 +138,7 @@ def main():
                 print(f"{D}Transcribing...{R}")
                 text = transcribe(model, audio, fp16=args.fp16, language=language)
                 if text:
-                    send_to_claude(text, effort=effort)
+                    send_to_claude(text, effort=effort, extra_args=extra_claude_args)
                     print()
 
 

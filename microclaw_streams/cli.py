@@ -14,9 +14,7 @@ from .speaker import is_interrupted
 
 MODEL_SIZE = "base"  # tiny, base, small, medium, large, turbo
 
-MODE_MAP = {
-    "a": ("auto-approve", "Edit,Write,Bash,Read,Glob,Grep,WebSearch,WebFetch"),
-}
+AUTO_APPROVE_TOOLS = ["Edit", "Write", "Bash", "Read", "Glob", "Grep"]
 
 
 def _print_session_id():
@@ -48,25 +46,18 @@ def main():
                         help="Resume a previous conversation by session ID")
     parser.add_argument("--model", "-m", default=MODEL_SIZE,
                         choices=["tiny", "base", "small", "medium", "large", "turbo"],
-                        help="Whisper model size (default: turbo)")
+                        help="Whisper model size (default: base)")
     parser.add_argument("--language", "-l", default="auto",
                         help="Language for Whisper transcription (default: auto). E.g. 'en', 'sv', 'de'")
     parser.add_argument("--fp16", action="store_true",
                         help="Use half-precision (fp16) for Whisper inference (requires CUDA GPU)")
-    parser.add_argument("--effort", "-e", default="low",
-                        choices=["low", "medium", "high", "max"],
-                        help="Claude effort level (default: low)")
-    args, extra_claude_args = parser.parse_known_args()
+    args = parser.parse_args()
 
     if args.resume:
         set_session_id(args.resume)
         print(f"Resuming session: {args.resume}")
 
     atexit.register(_print_session_id)
-
-    effort_levels = ["low", "medium", "high", "max"]
-    effort_idx = effort_levels.index(args.effort)
-    effort = args.effort
 
     language_options = ["auto", "en", "sv", "de", "fr", "es", "ja", "zh"]
     if args.language not in language_options:
@@ -83,16 +74,11 @@ def main():
     print(f"{B}Ready!{R}\n")
 
     while True:
-        print(f"{B}ENTER{R}=record  {B}A{R}=auto-approve  {B}T{R}=manually type input  {B}E{R}=effort [{B}{effort}{R}]  {B}L{R}=lang [{B}{language}{R}]  ")
+        print(f"{B}ENTER{R}=record  {B}A{R}=auto-approve  {B}T{R}=manually type input  {B}L{R}=lang [{B}{language}{R}]  ")
 
         key = _get_key()
         if key == "\x03":  # Ctrl+C
             raise KeyboardInterrupt
-        if key == "e":
-            effort_idx = (effort_idx + 1) % len(effort_levels)
-            effort = effort_levels[effort_idx]
-            print(f"Effort set to: {B}{effort}{R}")
-            continue
         if key == "l":
             lang_idx = (lang_idx + 1) % len(language_options)
             language = language_options[lang_idx]
@@ -102,16 +88,17 @@ def main():
             print("Type your message: ", end="", flush=True)
             text = input().strip()
             if text:
-                send_to_claude(text, effort=effort, extra_args=extra_claude_args)
+                send_to_claude(text)
                 print()
             continue
 
-        mode = MODE_MAP.get(key)
-        if mode:
-            label, allowed_tools = mode
-            print(f"{B}Recording{R} ({label} ON) ... press ENTER to stop.")
+        if key == "a":
+            allowed_tools = AUTO_APPROVE_TOOLS
+            permission_mode = "bypassPermissions"
+            print(f"{B}Recording{R} (auto-approve ON) ... press ENTER to stop.")
         else:
             allowed_tools = None
+            permission_mode = "default"
             print(f"{B}Recording{R} ... press ENTER to stop.")
 
         audio = record_push_to_talk()
@@ -127,7 +114,7 @@ def main():
             print(f"{D}No speech detected.{R}\n")
             continue
 
-        send_to_claude(text, allowed_tools=allowed_tools, effort=effort, extra_args=extra_claude_args)
+        send_to_claude(text, allowed_tools=allowed_tools, permission_mode=permission_mode)
         print()
 
         # If speech was interrupted by Enter, go straight into recording
@@ -138,7 +125,7 @@ def main():
                 print(f"{D}Transcribing...{R}")
                 text = transcribe(model, audio, fp16=args.fp16, language=language)
                 if text:
-                    send_to_claude(text, effort=effort, extra_args=extra_claude_args)
+                    send_to_claude(text)
                     print()
 
 

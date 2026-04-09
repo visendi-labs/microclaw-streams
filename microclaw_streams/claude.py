@@ -1,14 +1,23 @@
-"""Claude Code integration — send messages and stream responses."""
+"""Claude Code integration via the claude-agent-sdk."""
 
-import json
 import re
-import subprocess
+
+import anyio
+from claude_agent_sdk import (
+    query,
+    ClaudeAgentOptions,
+    AssistantMessage,
+    UserMessage,
+    SystemMessage,
+    ResultMessage,
+    TextBlock,
+)
 
 from .speaker import say, reset_interrupted, is_interrupted
 
-ALWAYS_ALLOWED_TOOLS = "AskUserQuestion,WebSearch,WebFetch"
-
 VOICE_RE = re.compile(r'<v(?:\s+lang="([a-z]{2})")?>(.*?)</v>', re.DOTALL)
+
+ALWAYS_ALLOWED_TOOLS = ["AskUserQuestion", "WebSearch", "WebFetch"]
 
 SYSTEM_PROMPT = (
     "You are in a live voice conversation. The user is speaking to you via speech-to-text. "
@@ -37,18 +46,37 @@ _session_id = None
 
 
 def get_session_id():
-    """Return the current session ID."""
     return _session_id
 
 
 def set_session_id(sid):
-    """Set the session ID (e.g. when resuming)."""
     global _session_id
     _session_id = sid
 
 
-def send_to_claude(text, allowed_tools=None, effort="low", extra_args=None):
-    """Send a message to Claude via print mode, streaming the response."""
+def send_to_claude(text, allowed_tools=None, permission_mode="default"):
+    """Send a message to Claude and stream the response. Sync wrapper around the async SDK."""
+    return anyio.run(_send_to_claude_async, text, allowed_tools, permission_mode)
+
+
+def _block_type(block):
+    return getattr(block, "type", None) or type(block).__name__
+
+
+def _speak_unseen(full_response, spoken_so_far):
+    accumulated = "".join(full_response)
+    unseen = accumulated[spoken_so_far:]
+    for match in VOICE_RE.finditer(unseen):
+        if is_interrupted():
+            break
+        say(match.group(2), lang=match.group(1))
+    last_close = unseen.rfind("</v>")
+    if last_close != -1:
+        return spoken_so_far + last_close + len("</v>")
+    return spoken_so_far
+
+
+async def _send_to_claude_async(text, allowed_tools, permission_mode):
     global _session_id
     reset_interrupted()
     B = "\033[1m"
@@ -56,60 +84,50 @@ def send_to_claude(text, allowed_tools=None, effort="low", extra_args=None):
     D = "\033[2m"
     print(f"{B}You:{R} {text}\n")
 
-    cmd = ["claude", "-p", text, "--output-format", "stream-json", "--verbose",
-           "--effort", effort, "--system-prompt", SYSTEM_PROMPT]
-    merged_tools = ALWAYS_ALLOWED_TOOLS
+    tools_list = list(ALWAYS_ALLOWED_TOOLS)
     if allowed_tools:
-        merged_tools = allowed_tools + "," + ALWAYS_ALLOWED_TOOLS
-    cmd += ["--allowedTools", merged_tools]
-    if _session_id:
-        cmd += ["--resume", _session_id]
-    if extra_args:
-        cmd += extra_args
+        for t in allowed_tools:
+            if t not in tools_list:
+                tools_list.append(t)
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    options_kwargs = {
+        "system_prompt": SYSTEM_PROMPT,
+        "allowed_tools": tools_list,
+        "permission_mode": permission_mode,
+    }
+    if _session_id:
+        options_kwargs["resume"] = _session_id
+    options = ClaudeAgentOptions(**options_kwargs)
 
     full_response = []
-    result_stats = {}
-    _pending_tools = {}
     spoken_so_far = 0
-    for line in proc.stdout:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        # Capture session_id from init event
-        if event.get("type") == "system" and event.get("subtype") == "init":
-            _session_id = event.get("session_id")
-        elif event.get("type") == "user" and "message" in event:
-                for block in event["message"].get("content", []):
-                    if block.get("type") == "tool_result":
-                        tid = block.get("tool_use_id", "")
-                        name = _pending_tools.pop(tid, "tool")
-                        snippet = ""
-                        content = block.get("content", "")
-                        if isinstance(content, str):
-                            snippet = content
-                        elif isinstance(content, list):
-                            parts = [c.get("text", "") for c in content if isinstance(c, dict)]
-                            snippet = "\n".join(parts)
-                        if snippet:
-                            lines = snippet.splitlines()
-                            preview = "\n".join("          " + l for l in lines[:6])
-                            if len(lines) > 6:
-                                preview += f"\n          ... ({len(lines) - 6} more lines)"
-                            print(f"          {D}[{name} result]{R}\n{preview}\n")
-                        else:
-                            print(f"          {D}[{name} done]{R}")
-        elif event.get("type") == "assistant" and "message" in event:
-            for block in event["message"].get("content", []):
-                if block.get("type") == "tool_use":
-                    tool_name = block.get("name", "unknown")
-                    tool_input = block.get("input", {})
-                    _pending_tools[block.get("id", "")] = tool_name
+    pending_tools = {}
+    result_message = None
+
+    async for message in query(prompt=text, options=options):
+        if isinstance(message, SystemMessage) and getattr(message, "subtype", None) == "init":
+            data = getattr(message, "data", None) or {}
+            sid = data.get("session_id") if isinstance(data, dict) else None
+            if sid:
+                _session_id = sid
+
+        elif isinstance(message, AssistantMessage):
+            for block in message.content:
+                btype = _block_type(block)
+                if isinstance(block, TextBlock) or btype == "text":
+                    chunk_text = block.text
+                    full_response.append(chunk_text)
+                    text_only = VOICE_RE.sub('', chunk_text).strip()
+                    voice_only = " ".join(m[1] for m in VOICE_RE.findall(chunk_text)).strip()
+                    if voice_only:
+                        print(f"          {B}Voice:{R} {voice_only}")
+                    if text_only:
+                        print(f"          {B}Text:{R} {text_only}")
+                elif "ToolUse" in btype or btype == "tool_use":
+                    tool_name = getattr(block, "name", "unknown")
+                    tool_input = getattr(block, "input", {}) or {}
+                    tool_id = getattr(block, "id", "")
+                    pending_tools[tool_id] = tool_name
                     detail = ""
                     if tool_name in ("Read", "Edit", "Write"):
                         detail = f" {tool_input.get('file_path', '?')}"
@@ -127,67 +145,79 @@ def send_to_claude(text, allowed_tools=None, effort="low", extra_args=None):
                     print(f"          {D}[{tool_name}{detail}]{R}")
                     if tool_name == "AskUserQuestion":
                         for q in tool_input.get("questions", []):
-                            question_text = q.get("question", "")
-                            options = q.get("options", [])
-                            spoken = question_text
-                            if options:
-                                labels = [o.get("label", "") for o in options if o.get("label")]
-                                if labels:
-                                    spoken += ". Options are: " + ", or ".join(labels)
+                            qtext = q.get("question", "")
+                            opts = q.get("options", [])
+                            spoken = qtext
+                            labels = [o.get("label", "") for o in opts if o.get("label")]
+                            if labels:
+                                spoken += ". Options are: " + ", or ".join(labels)
                             print(f"          {B}Voice:{R} {spoken}")
                             say(spoken)
-                elif block.get("type") == "text":
-                    chunk_text = block["text"]
-                    full_response.append(chunk_text)
-                    text_only = VOICE_RE.sub('', chunk_text).strip()
-                    voice_only = " ".join(m[1] for m in VOICE_RE.findall(chunk_text)).strip()
-                    if voice_only:
-                        print(f"          {B}Voice:{R} {voice_only}")
-                    if text_only:
-                        print(f"          {B}Text:{R} {text_only}")
-        elif event.get("type") == "result":
-            result_stats = event
-            if "result" in event and not full_response:
-                full_response.append(event["result"])
-                text_only = VOICE_RE.sub('', event["result"]).strip()
-                voice_only = " ".join(m[1] for m in VOICE_RE.findall(event["result"])).strip()
+            spoken_so_far = _speak_unseen(full_response, spoken_so_far)
+
+        elif isinstance(message, UserMessage):
+            content = getattr(message, "content", None) or []
+            if isinstance(content, list):
+                for block in content:
+                    btype = _block_type(block)
+                    if "ToolResult" in btype or btype == "tool_result":
+                        tid = getattr(block, "tool_use_id", "")
+                        name = pending_tools.pop(tid, "tool")
+                        bcontent = getattr(block, "content", "")
+                        snippet = ""
+                        if isinstance(bcontent, str):
+                            snippet = bcontent
+                        elif isinstance(bcontent, list):
+                            parts = []
+                            for c in bcontent:
+                                if hasattr(c, "text"):
+                                    parts.append(c.text)
+                                elif isinstance(c, dict):
+                                    parts.append(c.get("text", ""))
+                            snippet = "\n".join(parts)
+                        if snippet:
+                            lines = snippet.splitlines()
+                            preview = "\n".join("          " + l for l in lines[:6])
+                            if len(lines) > 6:
+                                preview += f"\n          ... ({len(lines) - 6} more lines)"
+                            print(f"          {D}[{name} result]{R}\n{preview}\n")
+                        else:
+                            print(f"          {D}[{name} done]{R}")
+
+        elif isinstance(message, ResultMessage):
+            result_message = message
+            result_text = getattr(message, "result", None)
+            if result_text and not full_response:
+                full_response.append(result_text)
+                text_only = VOICE_RE.sub('', result_text).strip()
+                voice_only = " ".join(m[1] for m in VOICE_RE.findall(result_text)).strip()
                 if voice_only:
                     print(f"          {B}Voice:{R} {voice_only}")
                 if text_only:
                     print(f"          {B}Text:{R} {text_only}")
 
-        # Check for complete <v> tags in new content and speak incrementally
-        accumulated = "".join(full_response)
-        unseen = accumulated[spoken_so_far:]
-        for match in VOICE_RE.finditer(unseen):
-            if is_interrupted():
-                break
-            say(match.group(2), lang=match.group(1))
-        # Advance spoken_so_far to end of last complete </v> tag
-        last_close = unseen.rfind("</v>")
-        if last_close != -1:
-            spoken_so_far += last_close + len("</v>")
-
-    proc.wait()
     response = "".join(full_response)
 
     stats_parts = []
-    if result_stats:
-        if "duration_ms" in result_stats:
-            stats_parts.append(f"{result_stats['duration_ms'] / 1000:.1f}s")
-        usage = result_stats.get("usage", {})
-        if usage.get("input_tokens"):
-            stats_parts.append(f"{usage['input_tokens']} in")
-        if usage.get("output_tokens"):
-            stats_parts.append(f"{usage['output_tokens']} out")
-        cached = usage.get("cache_read_input_tokens", 0)
-        if cached:
-            stats_parts.append(f"{cached} cached")
-        if "total_cost_usd" in result_stats:
-            stats_parts.append(f"${result_stats['total_cost_usd']:.4f}")
-    print(f"          {D}[{' | '.join(stats_parts)}]{R}\n")
+    if result_message is not None:
+        dur_ms = getattr(result_message, "duration_ms", None)
+        if dur_ms:
+            stats_parts.append(f"{dur_ms / 1000:.1f}s")
+        usage = getattr(result_message, "usage", None) or {}
+        if isinstance(usage, dict):
+            if usage.get("input_tokens"):
+                stats_parts.append(f"{usage['input_tokens']} in")
+            if usage.get("output_tokens"):
+                stats_parts.append(f"{usage['output_tokens']} out")
+            cached = usage.get("cache_read_input_tokens", 0)
+            if cached:
+                stats_parts.append(f"{cached} cached")
+        cost = getattr(result_message, "total_cost_usd", None)
+        if cost is not None:
+            stats_parts.append(f"${cost:.4f}")
+    if stats_parts:
+        print(f"          {D}[{' | '.join(stats_parts)}]{R}\n")
 
-    # Speak any remaining v tags that arrived after the last check
     remaining = response[spoken_so_far:]
     for match in VOICE_RE.finditer(remaining):
         if is_interrupted():

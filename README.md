@@ -4,8 +4,6 @@ Voice calls with Claude – talk it out. Voice in, voice out. Push-to-talk voice
 
 Whisper runs **entirely on your machine** — no audio is sent to the cloud. Only the transcribed text is sent to Claude.
 
-Just three dependencies: `numpy`, `sounddevice`, and `openai-whisper`.
-
 ## Setup
 
 ```bash
@@ -20,7 +18,7 @@ Requires macOS (uses the built-in `say` command) and [Claude Code](https://docs.
 microclaw-streams
 microclaw-streams --model turbo
 microclaw-streams --resume <session-id>
-microclaw-streams -l sv -e high
+microclaw-streams -l sv
 ```
 
 ### Options
@@ -29,17 +27,8 @@ microclaw-streams -l sv -e high
 |------|-------------|---------|
 | `-m`, `--model` | Whisper model size (`tiny`, `base`, `small`, `medium`, `large`, `turbo`) | `base` |
 | `-l`, `--language` | Transcription language (e.g. `en`, `sv`, `de`) | `auto` |
-| `-e`, `--effort` | Claude effort level (`low`, `medium`, `high`, `max`) | `low` |
 | `-r`, `--resume` | Resume a previous Claude Code session by its session ID | — |
 | `--fp16` | Use half-precision inference (requires CUDA GPU) | off |
-
-Any **additional flags** you pass are forwarded directly to the `claude` CLI. For example:
-
-```bash
-microclaw-streams --max-turns 5 --permission-mode plan --model turbo
-```
-
-Here `--model turbo` is consumed by MicroClaw (Whisper model), while `--max-turns 5` and `--permission-mode plan` are passed through to Claude Code. See `claude --help` for all available options.
 
 ### Controls
 
@@ -48,7 +37,6 @@ Here `--model turbo` is consumed by MicroClaw (Whisper model), while `--max-turn
 | `Enter` | Start/stop recording |
 | `A` | Record with auto-approve (allows edits, writes, bash) |
 | `T` | Type a message instead of speaking |
-| `E` | Cycle effort level |
 | `L` | Cycle transcription language |
 | `Space` | Interrupt speech output |
 

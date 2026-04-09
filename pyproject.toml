@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microclaw-streams"
-version = "0.1.2"
+version = "0.2.0"
 description = "Push-to-talk voice conversations powered by Whisper and Claude Code"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,6 +34,8 @@ dependencies = [
     "numpy",
     "sounddevice",
     "openai-whisper",
+    "claude-agent-sdk",
+    "anyio",
 ]
 
 [project.scripts]

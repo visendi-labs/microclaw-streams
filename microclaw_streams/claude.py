@@ -6,6 +6,8 @@ import subprocess
 
 from .speaker import say, reset_interrupted, is_interrupted
 
+ALWAYS_ALLOWED_TOOLS = "AskUserQuestion,WebSearch,WebFetch"
+
 VOICE_RE = re.compile(r'<v(?:\s+lang="([a-z]{2})")?>(.*?)</v>', re.DOTALL)
 
 SYSTEM_PROMPT = (
@@ -24,7 +26,11 @@ SYSTEM_PROMPT = (
     "put details outside <v> tags, then optionally add another <v> to summarize.\n"
     "It is recommended to output information outside <v> tags so the user can see what's "
     "happening in the terminal (e.g. summaries of changes, file paths, key decisions). "
-    "This way the user stays informed even when the spoken response is kept brief."
+    "This way the user stays informed even when the spoken response is kept brief.\n\n"
+    "You can use the AskUserQuestion tool when you need a structured choice from the user. "
+    "The question and option labels will be spoken aloud automatically — you do NOT need to "
+    "wrap them in <v> tags. Keep option labels short and natural-sounding since they'll be "
+    "read out loud. The user will answer with their voice on the next turn."
 )
 
 _session_id = None
@@ -52,8 +58,10 @@ def send_to_claude(text, allowed_tools=None, effort="low", extra_args=None):
 
     cmd = ["claude", "-p", text, "--output-format", "stream-json", "--verbose",
            "--effort", effort, "--system-prompt", SYSTEM_PROMPT]
+    merged_tools = ALWAYS_ALLOWED_TOOLS
     if allowed_tools:
-        cmd += ["--allowedTools", allowed_tools]
+        merged_tools = allowed_tools + "," + ALWAYS_ALLOWED_TOOLS
+    cmd += ["--allowedTools", merged_tools]
     if _session_id:
         cmd += ["--resume", _session_id]
     if extra_args:
@@ -114,7 +122,20 @@ def send_to_claude(text, allowed_tools=None, effort="low", extra_args=None):
                         detail = f" /{tool_input.get('pattern', '?')}/"
                     elif tool_name == "Agent":
                         detail = f" {tool_input.get('description', '?')}"
+                    elif tool_name == "AskUserQuestion":
+                        detail = " (asking)"
                     print(f"          {D}[{tool_name}{detail}]{R}")
+                    if tool_name == "AskUserQuestion":
+                        for q in tool_input.get("questions", []):
+                            question_text = q.get("question", "")
+                            options = q.get("options", [])
+                            spoken = question_text
+                            if options:
+                                labels = [o.get("label", "") for o in options if o.get("label")]
+                                if labels:
+                                    spoken += ". Options are: " + ", or ".join(labels)
+                            print(f"          {B}Voice:{R} {spoken}")
+                            say(spoken)
                 elif block.get("type") == "text":
                     chunk_text = block["text"]
                     full_response.append(chunk_text)

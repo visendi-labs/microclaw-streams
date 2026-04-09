@@ -111,7 +111,7 @@ def main():
             label, allowed_tools = mode
             print(f"{B}Recording{R} ({label} ON) ... press ENTER to stop.")
         else:
-            allowed_tools = "WebSearch,WebFetch"
+            allowed_tools = None
             print(f"{B}Recording{R} ... press ENTER to stop.")
 
         audio = record_push_to_talk()

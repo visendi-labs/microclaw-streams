@@ -108,18 +108,36 @@ async def set_permission_mode(mode):
         await _client.set_permission_mode(mode)
 
 
-async def send_to_claude(text):
-    """Send a message to Claude via the persistent client and stream the response."""
+async def queue_message(text):
+    """Queue a message to Claude without waiting for the response."""
     if _client is None:
         raise RuntimeError("Session not started. Call start_session() first.")
+    B = "\033[1m"
+    R = "\033[0m"
+    print(f"{B}You:{R} {text}\n")
+    await _client.query(text)
 
+
+async def drain_responses():
+    """Process all pending responses from Claude, speaking voice tags as they arrive."""
+    if _client is None:
+        return
     reset_interrupted()
+    await _process_response_stream()
+
+
+async def send_to_claude(text):
+    """Send a message to Claude and wait for the full response. Used in push-to-talk mode."""
+    await queue_message(text)
+    reset_interrupted()
+    await _process_response_stream()
+
+
+async def _process_response_stream():
+    """Process messages from Claude until a ResultMessage, printing and speaking as we go."""
     B = "\033[1m"
     R = "\033[0m"
     D = "\033[2m"
-    print(f"{B}You:{R} {text}\n")
-
-    await _client.query(text)
 
     full_response = []
     spoken_so_far = 0

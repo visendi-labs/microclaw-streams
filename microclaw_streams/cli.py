@@ -12,6 +12,7 @@ import whisper
 from .recorder import record_push_to_talk, transcribe, OpenMicRecorder, SAMPLE_RATE
 from .claude import (
     start_session, stop_session, send_to_claude,
+    queue_message, drain_responses,
     set_permission_mode, interrupt_claude,
 )
 from .speaker import is_interrupted
@@ -45,6 +46,7 @@ async def _run_open_mic(whisper_model, fp16, language):
     loop = asyncio.get_event_loop()
     text_ready = asyncio.Event()
     text_queue = []
+    drain_task = None
 
     def vad_and_transcribe_thread():
         """VAD + transcription in one thread — async loop stays free for Claude I/O."""
@@ -59,6 +61,14 @@ async def _run_open_mic(whisper_model, fp16, language):
     thread = threading.Thread(target=vad_and_transcribe_thread, daemon=True)
     thread.start()
 
+    async def _drain_loop():
+        """Continuously drain responses from Claude in the background."""
+        while True:
+            try:
+                await drain_responses()
+            except Exception:
+                break
+
     try:
         while True:
             await text_ready.wait()
@@ -66,7 +76,11 @@ async def _run_open_mic(whisper_model, fp16, language):
 
             while text_queue:
                 text = text_queue.pop(0)
-                await send_to_claude(text)
+                # Fire off the message immediately — don't wait for response
+                await queue_message(text)
+                # Ensure a drain task is running to process responses
+                if drain_task is None or drain_task.done():
+                    drain_task = asyncio.create_task(_drain_loop())
                 print()
     except KeyboardInterrupt:
         pass

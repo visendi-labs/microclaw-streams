@@ -1,10 +1,9 @@
-"""Claude Code integration via the claude-agent-sdk."""
+"""Claude Code integration via the claude-agent-sdk (bidirectional client)."""
 
 import re
 
-import anyio
 from claude_agent_sdk import (
-    query,
+    ClaudeSDKClient,
     ClaudeAgentOptions,
     AssistantMessage,
     UserMessage,
@@ -42,21 +41,8 @@ SYSTEM_PROMPT = (
     "read out loud. The user will answer with their voice on the next turn."
 )
 
-_session_id = None
-
-
-def get_session_id():
-    return _session_id
-
-
-def set_session_id(sid):
-    global _session_id
-    _session_id = sid
-
-
-def send_to_claude(text, allowed_tools=None, permission_mode="default"):
-    """Send a message to Claude and stream the response. Sync wrapper around the async SDK."""
-    return anyio.run(_send_to_claude_async, text, allowed_tools, permission_mode)
+# Module-level persistent client
+_client: ClaudeSDKClient | None = None
 
 
 def _block_type(block):
@@ -76,13 +62,12 @@ def _speak_unseen(full_response, spoken_so_far):
     return spoken_so_far
 
 
-async def _send_to_claude_async(text, allowed_tools, permission_mode):
-    global _session_id
-    reset_interrupted()
-    B = "\033[1m"
-    R = "\033[0m"
-    D = "\033[2m"
-    print(f"{B}You:{R} {text}\n")
+async def start_session(allowed_tools=None, permission_mode="default", resume=None):
+    """Start a persistent Claude session."""
+    global _client
+
+    if _client is not None:
+        await stop_session()
 
     tools_list = list(ALWAYS_ALLOWED_TOOLS)
     if allowed_tools:
@@ -95,23 +80,54 @@ async def _send_to_claude_async(text, allowed_tools, permission_mode):
         "allowed_tools": tools_list,
         "permission_mode": permission_mode,
     }
-    if _session_id:
-        options_kwargs["resume"] = _session_id
+    if resume:
+        options_kwargs["resume"] = resume
     options = ClaudeAgentOptions(**options_kwargs)
+
+    _client = ClaudeSDKClient(options)
+    await _client.__aenter__()
+
+
+async def stop_session():
+    """Stop the persistent Claude session."""
+    global _client
+    if _client is not None:
+        await _client.__aexit__(None, None, None)
+        _client = None
+
+
+async def interrupt_claude():
+    """Interrupt Claude's current processing."""
+    if _client is not None:
+        await _client.interrupt()
+
+
+async def set_permission_mode(mode):
+    """Change permission mode on the live session."""
+    if _client is not None:
+        await _client.set_permission_mode(mode)
+
+
+async def send_to_claude(text):
+    """Send a message to Claude via the persistent client and stream the response."""
+    if _client is None:
+        raise RuntimeError("Session not started. Call start_session() first.")
+
+    reset_interrupted()
+    B = "\033[1m"
+    R = "\033[0m"
+    D = "\033[2m"
+    print(f"{B}You:{R} {text}\n")
+
+    await _client.query(text)
 
     full_response = []
     spoken_so_far = 0
     pending_tools = {}
     result_message = None
 
-    async for message in query(prompt=text, options=options):
-        if isinstance(message, SystemMessage) and getattr(message, "subtype", None) == "init":
-            data = getattr(message, "data", None) or {}
-            sid = data.get("session_id") if isinstance(data, dict) else None
-            if sid:
-                _session_id = sid
-
-        elif isinstance(message, AssistantMessage):
+    async for message in _client.receive_response():
+        if isinstance(message, AssistantMessage):
             for block in message.content:
                 btype = _block_type(block)
                 if isinstance(block, TextBlock) or btype == "text":

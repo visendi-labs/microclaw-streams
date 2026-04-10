@@ -17,6 +17,7 @@ Requires macOS (uses the built-in `say` command) and [Claude Code](https://docs.
 ```bash
 microclaw-streams
 microclaw-streams --model turbo
+microclaw-streams --open-mic
 microclaw-streams --resume <session-id>
 microclaw-streams -l sv
 ```
@@ -28,6 +29,7 @@ microclaw-streams -l sv
 | `-m`, `--model` | Whisper model size (`tiny`, `base`, `small`, `medium`, `large`, `turbo`) | `base` |
 | `-l`, `--language` | Transcription language (e.g. `en`, `sv`, `de`) | `auto` |
 | `-r`, `--resume` | Resume a previous Claude Code session by its session ID | — |
+| `-o`, `--open-mic` | Start in open mic mode (auto-detect speech via VAD) | off |
 | `--fp16` | Use half-precision inference (requires CUDA GPU) | off |
 
 ### Controls
@@ -35,17 +37,24 @@ microclaw-streams -l sv
 | Key | Action |
 |-----|--------|
 | `Enter` | Start/stop recording |
-| `A` | Record with auto-approve (allows edits, writes, bash) |
+| `A` | Toggle auto-approve (allows edits, writes, bash) |
 | `T` | Type a message instead of speaking |
+| `O` | Switch to open mic mode |
 | `L` | Cycle transcription language |
 | `Space` | Interrupt speech output |
 
 ## How it works
 
-1. **Record** — Press Enter to start recording, press Enter again to stop
+1. **Record** — Press Enter to start recording (push-to-talk), or use open mic mode for hands-free
 2. **Transcribe** — Whisper transcribes your speech locally
 3. **Respond** — Claude Code processes your message and streams a response
 4. **Speak** — Voice output is spoken via macOS `say` command
+
+The session is persistent — Claude remembers the full conversation context across all turns. No need to resume sessions manually.
+
+### Open Mic Mode
+
+Open mic mode uses energy-based voice activity detection (VAD) to automatically detect when you start and stop speaking. When a pause is detected (~1.5s of silence), the audio is transcribed and sent to Claude automatically. Start with `--open-mic` or press `O` during a session.
 
 ## Requirements
 
@@ -57,9 +66,10 @@ microclaw-streams -l sv
 
 ```
 Loading Whisper 'turbo' model locally (no audio leaves your machine)...
+Connecting to Claude...
 Ready!
 
-ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]
+ENTER=record  A=auto-approve [default]  T=type  O=open-mic  L=lang [auto]
 Recording ... press ENTER to stop.
 Transcribing...
 You: Hey what's up how come we have a bunch of html files in this repo?
@@ -70,30 +80,6 @@ You: Hey what's up how come we have a bunch of html files in this repo?
           index.html
           demo.html
 
-          Voice: Actually, there are only two HTML files — an **index.html** and a **demo.html**. Not really a bunch. Want me to look into what they're for?
+          Voice: Actually, there are only two HTML files — an index.html and a demo.html. Not really a bunch. Want me to look into what they're for?
           [5.5s | 4 in | 123 out | 10254 cached | $0.0729]
-
-
-ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]
-Recording ... press ENTER to stop.
-Transcribing...
-You: Yup, for sure.
-
-          Voice: Sure, let me check them out.
-          [Read /home/user/index.html]
-          [Read result]
-          Claude requested permissions to read from /home/user/index.html, but you haven't granted it yet.
-
-          [Read /home/user/demo.html]
-          [Read result]
-          Claude requested permissions to read from /home/user/demo.html, but you haven't granted it yet.
-
-          Voice: Hmm, looks like I need permission to read those files. Could you grant me access?
-          [6.4s | 4 in | 147 out | 20759 cached | $0.0158]
-
-
-ENTER=record  A=auto-approve  T=manually type input  E=effort [low]  L=lang [auto]
-Recording (auto-approve ON) ... press ENTER to stop.
-Transcribing...
-You: Here you go.
 ```

@@ -43,35 +43,29 @@ async def _run_open_mic(whisper_model, fp16, language):
 
     recorder = OpenMicRecorder()
     loop = asyncio.get_event_loop()
-    audio_ready = asyncio.Event()
-    audio_queue = []
+    text_ready = asyncio.Event()
+    text_queue = []
 
-    def vad_thread():
+    def vad_and_transcribe_thread():
+        """VAD + transcription in one thread — async loop stays free for Claude I/O."""
         for audio in recorder.record():
-            audio_queue.append(audio)
-            loop.call_soon_threadsafe(audio_ready.set)
+            if len(audio) < SAMPLE_RATE * 0.3:
+                continue
+            text = transcribe(whisper_model, audio, fp16=fp16, language=language)
+            if text:
+                text_queue.append(text)
+                loop.call_soon_threadsafe(text_ready.set)
 
-    thread = threading.Thread(target=vad_thread, daemon=True)
+    thread = threading.Thread(target=vad_and_transcribe_thread, daemon=True)
     thread.start()
 
     try:
         while True:
-            await audio_ready.wait()
-            audio_ready.clear()
+            await text_ready.wait()
+            text_ready.clear()
 
-            while audio_queue:
-                audio = audio_queue.pop(0)
-
-                if len(audio) < SAMPLE_RATE * 0.3:
-                    continue
-
-                print(f"{D}Transcribing...{R}")
-                text = transcribe(whisper_model, audio, fp16=fp16, language=language)
-
-                if not text:
-                    print(f"{D}No speech detected.{R}")
-                    continue
-
+            while text_queue:
+                text = text_queue.pop(0)
                 await send_to_claude(text)
                 print()
     except KeyboardInterrupt:
